@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S/MIME证书生成器 | S/MIME Certificate Generator</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="在线S/MIME自签名证书生成工具 | Online S/MIME Self-Signed Certificate Generator">
+    <meta name="keywords" content="S/MIME, 证书生成, 自签名证书, 加密, Certificate Generator, Self-Signed Certificate, Encryption">
+    <link rel="alternate" hreflang="en" href="?lang=en">
+    <link rel="alternate" hreflang="zh" href="?lang=zh">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/forge/0.10.0/forge.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .language-switch {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            text-decoration: none;
+            color: #0078d4;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .language-switch:hover {
+            text-decoration: underline;
+        }
+        .container {
+            margin-top: 40px;
+        }
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        #result {
+            margin-top: 20px;
+            word-break: break-all;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .download-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        @media (max-width: 600px) {
+            .download-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Language Switch Link -->
+    <a href="javascript:void(0);" id="languageSwitch" class="language-switch"></a>
+
+    <div class="container">
+        <h1 id="pageTitle">S/MIME自签名证书生成器</h1>
+        
+        <div class="form-group">
+            <label id="labelCommonName">常用名称:</label>
+            <input type="text" id="commonName" placeholder="您的姓名">
+        </div>
+        
+        <div class="form-group">
+            <label id="labelEmail">电子邮箱:</label>
+            <input type="email" id="email" placeholder="your.email@example.com">
+        </div>
+        
+        <div class="form-group">
+            <label id="labelValidity">有效期(天数):</label>
+            <input type="number" id="validity" value="365" min="1">
+        </div>
+        
+        <button id="generateBtn">生成证书</button>
+        
+        <div id="result"></div>
+        
+        <div id="downloadArea" style="display:none;">
+            <div class="download-buttons">
+                <button id="downloadCertBtn">下载证书</button>
+                <button id="downloadKeyBtn">下载私钥</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 语言配置
+        const translations = {
+            zh: {
+                switch: 'English',
+                pageTitle: 'S/MIME自签名证书生成器',
+                commonNameLabel: '常用名称:',
+                commonNamePlaceholder: '您的姓名',
+                emailLabel: '电子邮箱:',
+                emailPlaceholder: 'your.email@example.com',
+                validityLabel: '有效期(天数):',
+                generateBtn: '生成证书',
+                downloadCertBtn: '下载证书',
+                downloadKeyBtn: '下载私钥',
+                alertFillFields: '请填写所有字段',
+                resultTitle: '生成的证书:'
+            },
+            en: {
+                switch: '中文',
+                pageTitle: 'S/MIME Self-Signed Certificate Generator',
+                commonNameLabel: 'Common Name:',
+                commonNamePlaceholder: 'Your Name',
+                emailLabel: 'Email:',
+                emailPlaceholder: 'your.email@example.com',
+                validityLabel: 'Validity (Days):',
+                generateBtn: 'Generate Certificate',
+                downloadCertBtn: 'Download Certificate',
+                downloadKeyBtn: 'Download Private Key',
+                alertFillFields: 'Please fill in all fields',
+                resultTitle: 'Generated Certificate:'
+            }
+        };
+
+        // 获取当前语言
+        function getCurrentLanguage() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('lang') || 'zh';
+        }
+
+        // 更新页面语言
+        function updateLanguage(lang) {
+            const t = translations[lang];
+            
+            // 更新语言切换链接
+            document.getElementById('languageSwitch').textContent = t.switch;
+            
+            // 更新页面标题
+            document.title = t.pageTitle;
+            document.getElementById('pageTitle').textContent = t.pageTitle;
+            
+            // 更新标签和占位符
+            document.getElementById('labelCommonName').textContent = t.commonNameLabel;
+            document.getElementById('commonName').placeholder = t.commonNamePlaceholder;
+            
+            document.getElementById('labelEmail').textContent = t.emailLabel;
+            document.getElementById('email').placeholder = t.emailPlaceholder;
+            
+            document.getElementById('labelValidity').textContent = t.validityLabel;
+            
+            document.getElementById('generateBtn').textContent = t.generateBtn;
+            document.getElementById('downloadCertBtn').textContent = t.downloadCertBtn;
+            document.getElementById('downloadKeyBtn').textContent = t.downloadKeyBtn;
+        }
+
+        // 切换语言
+        document.getElementById('languageSwitch').addEventListener('click', () => {
+            const currentLang = getCurrentLanguage();
+            const newLang = currentLang === 'zh' ? 'en' : 'zh';
+            window.location.href = `?lang=${newLang}`;
+        });
+
+        // 生成证书功能
+        document.getElementById('generateBtn').addEventListener('click', () => {
+            const lang = getCurrentLanguage();
+            const t = translations[lang];
+            
+            const commonName = document.getElementById('commonName').value;
+            const email = document.getElementById('email').value;
+            const validity = parseInt(document.getElementById('validity').value);
+
+            if (!commonName || !email) {
+                alert(t.alertFillFields);
+                return;
+            }
+
+            // 证书生成逻辑（使用forge.js）
+            const keys = forge.pki.rsa.generateKeyPair(2048);
+            const cert = forge.pki.createCertificate();
+            cert.publicKey = keys.publicKey;
+            cert.privateKey = keys.privateKey;
+
+            cert.serialNumber = Math.floor(Math.random() * 1000000).toString();
+            
+            const attrs = [
+                { name: 'commonName', value: commonName },
+                { name: 'emailAddress', value: email }
+            ];
+
+            cert.setSubject(attrs);
+            cert.setIssuer(attrs);
+
+            const now = new Date();
+            cert.validity.notBefore = now;
+            cert.validity.notAfter = new Date();
+            cert.validity.notAfter.setDate(now.getDate() + validity);
+
+            cert.sign(keys.privateKey);
+
+            const certPem = forge.pki.certificateToPem(cert);
+            const privateKeyPem = forge.pki.privateKeyToPem(keys.privateKey);
+
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `
+                <h3>${t.resultTitle}</h3>
+                <pre>${certPem}</pre>
+            `;
+
+            document.getElementById('downloadArea').style.display = 'block';
+
+            // 下载功能
+            document.getElementById('downloadCertBtn').onclick = () => {
+                const blob = new Blob([certPem], {type: 'application/x-pem-file'});
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = lang === 'zh' ? 'smime_证书.pem' : 'smime_certificate.pem';
+                link.click();
+            };
+
+            document.getElementById('downloadKeyBtn').onclick = () => {
+                const blob = new Blob([privateKeyPem], {type: 'application/x-pem-file'});
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = lang === 'zh' ? 'smime_私钥.pem' : 'smime_private_key.pem';
+                link.click();
+            };
+        });
+
+        // 初始化语言
+        const currentLang = getCurrentLanguage();
+        updateLanguage(currentLang);
+        document.documentElement.lang = currentLang === 'zh' ? 'zh-CN' : 'en';
+    </script>
+</body>
+</html>
